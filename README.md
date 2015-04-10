@@ -4,7 +4,7 @@ In the time-honored tradition of taking yet another noun and making .js file out
 
 ![black hole image](https://s3-us-west-2.amazonaws.com/ccrosland-share-bucket/black-hole/blackhole.PNG)
 
-For an explanation of how it works, see [the blog post](http://cliffcrosland.tumblr.com/post/115981256393/black-hole-js).
+To learn how it works and play with a demo, see [the blog post on Tumblr](http://cliffcrosland.tumblr.com/post/115981256393/black-hole-js).
 
 Note: due to HTML5's security restrictions, you must either render images from your own domain or from a server where CORS is ok. I believe the default CORS settings for S3 buckets work fine.
 
