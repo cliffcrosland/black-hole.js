@@ -32,3 +32,5 @@ You can also specify some parameters to change the gravitational lensing effect:
   });
 </script>
 ```
+TODO:
+- Instead of looping through the angle lookup table for each pixel, use linear regression to generate a continuous function from the angle data and provide it to the shader for constant-time angle lookup.
