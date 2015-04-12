@@ -1983,16 +1983,7 @@ function blackHole(centerX, centerY, blackHoleAngleFn, fovAngle) {
         float outDistanceFromCenter = tan(outAngle) * distanceFromViewerToImagePlane;\
         vec2 unitVectorBetweenCoordAndCenter = vecBetweenCoordAndCenter / distanceFromCenter;\
         vec2 outCoord = blackHoleCenter + unitVectorBetweenCoordAndCenter * outDistanceFromCenter;\
-        vec2 clampedCoord = clamp(outCoord, vec2(0.0), texSize);\
-        if (outCoord != clampedCoord) {\
-          /* Add a little noise so that we do not get uniformly colored regions near the\
-          /* black hole horizon */\
-          vec2 arbitrarySeed1 = outCoord;\
-          vec2 arbitrarySeed2 = coord;\
-          vec2 randVec = vec2(rand(arbitrarySeed1), rand(arbitrarySeed2));\
-          /*clampedCoord += (blackHoleCenter - clampedCoord) * randVec;*/\
-          outCoord = clampedCoord;\
-        }\
+        outCoord = clamp(outCoord, vec2(0.0), texSize);\
         gl_FragColor = texture2D(texture, outCoord / texSize);\
     }');
 
