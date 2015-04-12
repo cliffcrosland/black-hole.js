@@ -8,7 +8,39 @@ window.BlackHoleSolver = {};
 
   // exports
 
-  exports.computeBlackHoleTables = function (startRadius, numAngleDataPoints, maxAngle, optionalNumIterationsInODESolver) {
+  exports.computeBlackHoleAngleFunction = function (startRadius, polynomialDegree, numAngleDataPoints, maxAngle, optionalNumIterationsInODESolver) {
+    var angleTables = computeBlackHoleTables(startRadius, numAngleDataPoints, maxAngle, optionalNumIterationsInODESolver);
+    // We want to find coefficients for a good polynomial function that matches the data.
+    // We do so by finding coeffs that minimize sum of differences^2 btwn polynomial output
+    // and actual outAngles table result.
+    var polynomial = function (params, x) {
+      var sum = 0.0;
+      for (var i = 0; i <= polynomialDegree; i++) {
+        sum += params[i] * Math.pow(x, i);
+      }
+      return sum;
+    }
+    var initialCoeffs = [];
+    for (var i = 0; i <= polynomialDegree; i++) {
+      initialCoeffs.push(1.0);
+    }
+    var leastSquaresObjective = function (params) {
+      var total = 0.0;
+      for (var i = 0; i < angleTables.inAngles.length; i++) {
+        var result = polynomial(params, angleTables.inAngles[i]);
+        var delta = result - angleTables.outAngles[i];
+        total += (delta * delta);
+      }
+      return total;
+    }
+    var minimizer = numeric.uncmin(leastSquaresObjective, initialCoeffs);
+    return {
+      anglePolynomialCoefficients: minimizer.solution,
+      maxInBlackHoleAngle: angleTables.maxInBlackHoleAngle
+    };
+  }
+
+  var computeBlackHoleTables = function (startRadius, numAngleDataPoints, maxAngle, optionalNumIterationsInODESolver) {
     var angleStep = maxAngle / numAngleDataPoints;
     var inAngles = [];
     for (var angle = 0.0; angle < maxAngle; angle += angleStep) {
@@ -18,20 +50,28 @@ window.BlackHoleSolver = {};
 
     // Find the largest value that will fall into the black hole.
     var maxInBlackHoleAngle = 0;
-    var outAngles = [];
+    var retInAngles = [];
+    var retOutAngles = [];
     for (var i = 0; i < inAngles.length; i++) {
       if (outAngleResults[i].inBlackHole) {
         maxInBlackHoleAngle = inAngles[i];
+      } else if (!isNaN(inAngles[i]) && !isNaN(outAngleResults[i].angle)){
+        retInAngles.push(inAngles[i] + Math.PI);
+        var outAngle = outAngleResults[i].angle;
+        // Want angle to be measured from axis toward black hole, not axis toward viewer.
+        if (outAngle < 0) {
+          outAngle = -180 - outAngle
+        } else {
+          outAngle = 180 - outAngle
+        }
+        retOutAngles.push(outAngle);
       }
-      var outAngle = outAngleResults[i].angle;
-      // transform out-angles to be from line that goes toward black hole.
-      outAngles.push(-1 * outAngleResults[i].angle);
     }
 
     return {
       maxInBlackHoleAngle: degreesToRadians(maxInBlackHoleAngle),
-      inAngles: inAngles.map(degreesToRadians),
-      outAngles: outAngles.map(degreesToRadians)
+      inAngles: retInAngles.map(degreesToRadians),
+      outAngles: retOutAngles.map(degreesToRadians)
     };
   }
 
@@ -165,19 +205,20 @@ window.BlackHole = {};
     canvas.draw(texture).update().replace(placeholder);
 
     opt = opt || {};
-    var distanceFromBlackHole = opt['distanceFromBlackHole'] || 30;
-    var numAngleTableEntries = opt['numAngleTableEntries'] || 100;
-    var fovAngleInDegrees = opt['fovAngleInDegrees'] || 80;
+    var distanceFromBlackHole = opt['distanceFromBlackHole'] || 80;
+    var polynomialDegree = opt['polynomialDegree'] || 2;
+    var numAngleTableEntries = opt['numAngleTableEntries'] || 1000;
+    var fovAngleInDegrees = opt['fovAngleInDegrees'] || 73;
     var fovAngleInRadians = fovAngleInDegrees * Math.PI / 180;
 
-    var blackHoleTables = BlackHoleSolver.computeBlackHoleTables(distanceFromBlackHole, numAngleTableEntries, fovAngleInDegrees);
+    var blackHoleAngleFn = BlackHoleSolver.computeBlackHoleAngleFunction(distanceFromBlackHole, polynomialDegree, numAngleTableEntries, fovAngleInDegrees);
 
     var blackHoleVisible = false;
     $(canvas).mousemove(function (evt) {
       var offset = $(canvas).offset();
       var x = evt.pageX - offset.left;
       var y = evt.pageY - offset.top;
-      canvas.draw(texture).blackHole(x, y, blackHoleTables, fovAngleInRadians).update();
+      canvas.draw(texture).blackHole(x, y, blackHoleAngleFn, fovAngleInRadians).update();
       blackHoleVisible = true;
     });
     $(canvas).mouseleave(function (evt) {
@@ -636,7 +677,9 @@ var Shader = (function() {
             var location = gl.getUniformLocation(this.program, name);
             if (location === null) continue; // will be null if the uniform isn't used in the shader
             var value = uniforms[name];
-            if (isArray(value)) {
+            if (value.uniformVectorType) {
+              gl[value.uniformVectorType](location, new Float32Array(value.value));
+            } else if (isArray(value)) {
                 switch (value.length) {
                     case 1: gl.uniform1fv(location, new Float32Array(value)); break;
                     case 2: gl.uniform2fv(location, new Float32Array(value)); break;
@@ -644,8 +687,7 @@ var Shader = (function() {
                     case 4: gl.uniform4fv(location, new Float32Array(value)); break;
                     case 9: gl.uniformMatrix3fv(location, false, new Float32Array(value)); break;
                     case 16: gl.uniformMatrix4fv(location, false, new Float32Array(value)); break;
-                    default:  gl.uniform1fv(location, new Float32Array(value)); break;
-                        //throw 'dont\'t know how to load uniform "' + name + '" of length ' + value.length;
+                    default: throw 'dont\'t know how to load uniform "' + name + '" of length ' + value.length;
                 }
             } else if (isNumber(value)) {
                 gl.uniform1f(location, value);
@@ -1900,26 +1942,36 @@ function ink(strength) {
 /**
  * Gravitational lensing effect due to black hole.
  */
-function blackHole(centerX, centerY, blackHoleTables, fovAngle) {
-    if (blackHoleTables.outAngles.length != blackHoleTables.inAngles.length) {
-        throw "blackHoleTables.outAngles cannot have different length from blackHoleTables.inAngles";
-    }
-    var tableLength = blackHoleTables.inAngles.length;
+function blackHole(centerX, centerY, blackHoleAngleFn, fovAngle) {
+    var anglePolynomialCoefficients = blackHoleAngleFn.anglePolynomialCoefficients;
+    var numPolynomialCoefficients = anglePolynomialCoefficients.length;
     gl.blackHoleShaders = gl.blackHoleShaders || {};
-    gl.blackHoleShaders[tableLength] = gl.blackHoleShaders[tableLength] || new Shader(null, '\
+    gl.blackHoleShaders[numPolynomialCoefficients] = gl.blackHoleShaders[numPolynomialCoefficients] || new Shader(null, '\
     /* black hole vars */\
     uniform float distanceFromViewerToImagePlane;\
     uniform float maxInBlackHoleAngle;\
-    uniform vec2 center;\
-    uniform float inAngleTable[' + tableLength + '];\
-    uniform float outAngleTable[' + tableLength + '];\
+    uniform vec2 blackHoleCenter;\
+    uniform float anglePolynomialCoefficients[' + numPolynomialCoefficients + '];\
     /* texture vars */\
     uniform sampler2D texture;\
     uniform vec2 texSize;\
     varying vec2 texCoord;\
+    \
+    float rand(vec2 co){\
+      return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);\
+    }\
+    \
+    float anglePolynomialFn(float inAngle) {\
+      float outAngle = 0.0;\
+      for (int i = 0; i < ' + numPolynomialCoefficients + '; i++) {\
+        outAngle += anglePolynomialCoefficients[i] * pow(inAngle, float(i));\
+      }\
+      return outAngle;\
+    }\
+    \
     void main() {\
         vec2 coord = texCoord * texSize;\
-        vec2 vecBetweenCoordAndCenter = coord - center;\
+        vec2 vecBetweenCoordAndCenter = coord - blackHoleCenter;\
         float distanceFromCenter = length(vecBetweenCoordAndCenter);\
         float inAngle = atan(distanceFromCenter, distanceFromViewerToImagePlane);\
         /* Completely black if in black hole */\
@@ -1927,27 +1979,20 @@ function blackHole(centerX, centerY, blackHoleTables, fovAngle) {
             gl_FragColor = vec4(0.0, 0.0, 0.0, 1.0);\
             return;\
         }\
-        /* Look up out angle. I know it is linear-time. GLSL does not do recursion or random access well. Hmm... */\
-        float inAngleLow = inAngleTable[0];\
-        float inAngleHigh = inAngleTable[1];\
-        float outAngleLow = outAngleTable[0];\
-        float outAngleHigh = outAngleTable[1];\
-        float minDiffSoFar = abs(inAngleTable[0] - inAngle);\
-        for (int i = 0; i < ' + (tableLength-1) + '; i++) {\
-            float diff = abs(inAngleTable[i] - inAngle);\
-            if (diff < minDiffSoFar) {\
-                minDiffSoFar = diff;\
-                inAngleLow = inAngleTable[i];\
-                inAngleHigh = inAngleTable[i + 1];\
-                outAngleLow = outAngleTable[i];\
-                outAngleHigh = outAngleTable[i + 1];\
-            }\
-        }\
-        float outAngle = outAngleLow + (outAngleHigh - outAngleLow) * (inAngle - inAngleLow) / (inAngleHigh - inAngleLow);\
+        float outAngle = anglePolynomialFn(inAngle);\
         float outDistanceFromCenter = tan(outAngle) * distanceFromViewerToImagePlane;\
         vec2 unitVectorBetweenCoordAndCenter = vecBetweenCoordAndCenter / distanceFromCenter;\
-        vec2 outCoord = center + unitVectorBetweenCoordAndCenter * outDistanceFromCenter;\
-        outCoord = clamp(outCoord, vec2(0.0), texSize);\
+        vec2 outCoord = blackHoleCenter + unitVectorBetweenCoordAndCenter * outDistanceFromCenter;\
+        vec2 clampedCoord = clamp(outCoord, vec2(0.0), texSize);\
+        if (outCoord != clampedCoord) {\
+          /* Add a little noise so that we do not get uniformly colored regions near the\
+          /* black hole horizon */\
+          vec2 arbitrarySeed1 = outCoord;\
+          vec2 arbitrarySeed2 = coord;\
+          vec2 randVec = vec2(rand(arbitrarySeed1), rand(arbitrarySeed2));\
+          /*clampedCoord += (blackHoleCenter - clampedCoord) * randVec;*/\
+          outCoord = clampedCoord;\
+        }\
         gl_FragColor = texture2D(texture, outCoord / texSize);\
     }');
 
@@ -1955,12 +2000,14 @@ function blackHole(centerX, centerY, blackHoleTables, fovAngle) {
     var w = this.width;
     var distanceFromViewerToImagePlane = Math.sqrt(h*h + w*w) / Math.tan(fovAngle);
 
-    simpleShader.call(this, gl.blackHoleShaders[tableLength], {
-        inAngleTable: blackHoleTables.inAngles,
-        outAngleTable: blackHoleTables.outAngles,
+    simpleShader.call(this, gl.blackHoleShaders[numPolynomialCoefficients], {
+        anglePolynomialCoefficients: {
+          uniformVectorType: 'uniform1fv',
+          value: anglePolynomialCoefficients
+        },
         distanceFromViewerToImagePlane: distanceFromViewerToImagePlane,
-        maxInBlackHoleAngle: blackHoleTables.maxInBlackHoleAngle,
-        center: [centerX, centerY],
+        maxInBlackHoleAngle: blackHoleAngleFn.maxInBlackHoleAngle,
+        blackHoleCenter: [centerX, centerY],
         texSize: [this.width, this.height]
     });
 
