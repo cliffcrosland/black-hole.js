@@ -26,11 +26,10 @@ You can also specify some parameters to change the gravitational lensing effect:
 ```html
 <script>
   BlackHole.blackHoleifyImage(placeholderId, corsOkImageUrl, {
-    distanceFromBlackHole: 20, // 30 is default
-    numAngleTableEntries: 150, // 100 is default, more might improve quality but impact performance
-    fovAngleInDegrees: 60, // 80 is default
+    distanceFromBlackHole: 70, // 80 is default
+    polynomialDegree: 3, // 2 is default
+    numAngleTableEntries: 2000, // 1000 is default. More might improve quality but impact performance
+    fovAngleInDegrees: 60, // 73 is default. Yeah, it's an unusual choice, but it just looked cool, ok?
   });
 </script>
 ```
-TODO:
-- Instead of looping through the angle lookup table for each pixel, use linear regression to generate a continuous function from the angle data and provide it to the shader for constant-time angle lookup.
