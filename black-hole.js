@@ -1957,10 +1957,6 @@ function blackHole(centerX, centerY, blackHoleAngleFn, fovAngle) {
     uniform vec2 texSize;\
     varying vec2 texCoord;\
     \
-    float rand(vec2 co){\
-      return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);\
-    }\
-    \
     float anglePolynomialFn(float inAngle) {\
       float outAngle = 0.0;\
       for (int i = 0; i < ' + numPolynomialCoefficients + '; i++) {\
