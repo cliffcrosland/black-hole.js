@@ -8,8 +8,12 @@ window.BlackHoleSolver = {};
 
   // exports
 
-  exports.computeBlackHoleAngleFunction = function (startRadius, polynomialDegree, numAngleDataPoints, maxAngle, optionalNumIterationsInODESolver) {
-    var angleTables = computeBlackHoleTables(startRadius, numAngleDataPoints, maxAngle, optionalNumIterationsInODESolver);
+  exports.computeBlackHoleAngleFunction = function (startRadius, polynomialDegree, numAngleDataPoints, fovAngle, optionalNumIterationsInODESolver) {
+    // To prevent warping for pixels far from the black hole, solve for angles well beyond the fov so 
+    // that the polynomial fits data well for angles near the fov limit.
+    var degreesBufferBeyondFov = 45;
+    var maxAngleToCompute = fovAngle + degreesBufferBeyondFov;
+    var angleTables = computeBlackHoleTables(startRadius, numAngleDataPoints, maxAngleToCompute, optionalNumIterationsInODESolver);
     // We want to find coefficients for a good polynomial function that matches the data.
     // We do so by finding coeffs that minimize sum of differences^2 btwn polynomial output
     // and actual outAngles table result.
