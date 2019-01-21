@@ -2,7 +2,7 @@
 
 [Demo and explanatory blog post](https://cliffcrosland.com/posts/black-hole-js/).
 
-~[milky-way-with-black-hole](https://s3-us-west-1.amazonaws.com/cliffcrosland-public/black_hole_js/milky_way_with_black_hole.png)
+![milky-way-with-black-hole](https://s3-us-west-1.amazonaws.com/cliffcrosland-public/black_hole_js/milky_way_with_black_hole.png)
 
 In the time-honored tradition of taking yet another noun and making .js file out of it, I proudly present black-hole.js, which uses a numerical ordinary differential equation solver from numeric.js, and some nice WebGL utilities from glfx.js, to render the gravitational lensing of a black hole.
 
